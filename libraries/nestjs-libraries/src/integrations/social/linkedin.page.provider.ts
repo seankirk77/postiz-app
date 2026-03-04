@@ -24,7 +24,7 @@ export class LinkedinPageProvider
   override name = 'LinkedIn Page';
   override isBetweenSteps = true;
   override refreshWait = true;
-  override maxConcurrentJob = 2; // LinkedIn Page has professional posting limits
+  override maxConcurrentJob = 2;
   override scopes = [
     'rw_organization_admin',
     'w_organization_social',
@@ -56,7 +56,6 @@ export class LinkedinPageProvider
       })
     ).json();
 
-    // Use /v2/me with r_basicprofile (no openid required) to get user identity
     const meData = await (
       await fetch('https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))', {
         headers: {
@@ -65,13 +64,13 @@ export class LinkedinPageProvider
       })
     ).json();
 
-    const id = meData.id;
+    const userId = meData.id;
     const name = `${meData.localizedFirstName || ''} ${meData.localizedLastName || ''}`.trim();
     const picture = meData.profilePicture?.['displayImage~']?.elements?.[0]?.identifiers?.[0]?.identifier || '';
-    const vanityName = meData.vanityName || id;
+    const vanityName = meData.vanityName || userId;
 
     return {
-      id,
+      id: userId,
       accessToken,
       refreshToken,
       expiresIn: expires_in,
@@ -115,9 +114,7 @@ export class LinkedinPageProvider
     const state = makeId(6);
     const codeVerifier = makeId(30);
     const clientId = process.env.LINKEDIN_PAGE_CLIENT_ID || process.env.LINKEDIN_CLIENT_ID;
-    const url = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&prompt=none&client_id=${
-      clientId
-    }&redirect_uri=${encodeURIComponent(
+    const url = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&prompt=none&client_id=${clientId}&redirect_uri=${encodeURIComponent(
       `${process.env.FRONTEND_URL}/integrations/social/linkedin-page`
     )}&state=${state}&scope=${encodeURIComponent(this.scopes.join(' '))}`;
     return {
@@ -128,7 +125,7 @@ export class LinkedinPageProvider
   }
 
   async companies(accessToken: string) {
-    const { elements, ...all } = await (
+    const { elements } = await (
       await fetch(
         'https://api.linkedin.com/v2/organizationalEntityAcls?q=roleAssignee&role=ADMINISTRATOR&projection=(elements*(organizationalTarget~(localizedName,vanityName,logoV2(original~:playableStreams))))',
         {
@@ -153,7 +150,7 @@ export class LinkedinPageProvider
   }
 
   async reConnect(
-    id: string,
+    integId: string,
     requiredId: string,
     accessToken: string
   ): Promise<Omit<AuthTokenDetails, 'refreshToken' | 'expiresIn'>> {
@@ -161,7 +158,7 @@ export class LinkedinPageProvider
       page: requiredId,
     });
 
-    re4urn {
+    return {
       id: information.id,
       name: information.name,
       accessToken: information.access_token,
@@ -225,7 +222,6 @@ export class LinkedinPageProvider
 
     this.checkScopes(this.scopes, scope);
 
-    // Use /v2/me with r_basicprofile (no openid required) to get user identity
     const meData = await (
       await fetch('https://api.linkedin.com/v2/me?projection=(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))', {
         headers: {
@@ -234,13 +230,13 @@ export class LinkedinPageProvider
       })
     ).json();
 
-    const id = meData.id;
+    const userId = meData.id;
     const name = `${meData.localizedFirstName || ''} ${meData.localizedLastName || ''}`.trim();
     const picture = meData.profilePicture?.['displayImage~']?.elements?.[0]?.identifiers?.[0]?.identifier || '';
-    const vanityName = meData.vanityName || id;
+    const vanityName = meData.vanityName || userId;
 
     return {
-      id: `p_${id}`,
+      id: `p_${userId}`,
       accessToken,
       refreshToken,
       expiresIn,
@@ -333,54 +329,30 @@ export class LinkedinPageProvider
 
     const analytics = [...elements2, ...elements, ...elements3].reduce(
       (all, current) => {
-        if (
-          typeof current?.totalPageStatistics?.views?.allPageViews
-            ?.pageViews !== 'undefined'
-        ) {
+        if (typeof current?.totalPageStatistics?.views?.allPageViews?.pageViews !== 'undefined') {
           all['Page Views'].push({
             total: current.totalPageStatistics.views.allPageViews.pageViews,
             date: dayjs(current.timeRange.start).format('YYYY-MM-DD'),
           });
         }
-
-        if (
-          typeof current?.followerGains?.organicFollowerGain !== 'undefined'
-        ) {
+        if (typeof current?.followerGains?.organicFollowerGain !== 'undefined') {
           all['Organic Followers'].push({
             total: current?.followerGains?.organicFollowerGain,
             date: dayjs(current.timeRange.start).format('YYYY-MM-DD'),
           });
         }
-
-        if (typeof current?.followerGains:.paidFollowerGain !== 'undefined') {
+        if (typeof current?.followerGains?.paidFollowerGain !== 'undefined') {
           all['Paid Followers'].push({
             total: current?.followerGains?.paidFollowerGain,
             date: dayjs(current.timeRange.start).format('YYYY-MM-DD'),
           });
         }
-
         if (typeof current?.totalShareStatistics !== 'undefined') {
-          all['Clicks'].push({
-            total: current?.totalShareStatistics.clickCount,
-            date: dayjs(current.timeRange.start).format('YYYY-MM-DD'),
-          });
-
-          all['Shares'].push({
-            total: current?.totalShareStatistics.shareCount,
-            date: dayjs(current.timeRange.start).format('YYYY-MM-DD'),
-          });
-
-          all['Engagement'].push({
-            total: current?.totalShareStatistics.engagement,
-            date: dayjs(current.timeRange.start).format('YYYY-MM-DD'),
-          });
-
-          all['Comments'].push({
-            total: current?.totalShareStatistics.commentCount,
-            date: dayjs(current.timeRange.start).format('YYYY-MM-DD'),
-          });
+          all['Clicks'].push({ total: current?.totalShareStatistics.clickCount, date: dayjs(current.timeRange.start).format('YYYY-MM-DD') });
+          all['Shares'].push({ total: current?.totalShareStatistics.shareCount, date: dayjs(current.timeRange.start).format('YYYY-MM-DD') });
+          all['Engagement'].push({ total: current?.totalShareStatistics.engagement, date: dayjs(current.timeRange.start).format('YYYY-MM-DD') });
+          all['Comments'].push({ total: current?.totalShareStatistics.commentCount, date: dayjs(current.timeRange.start).format('YYYY-MM-DD') });
         }
-
         return all;
       },
       {
@@ -396,137 +368,9 @@ export class LinkedinPageProvider
 
     return Object.keys(analytics).map((key) => ({
       label: key,
-      data: analytics[
-        key as 'Page Views' | 'Organic Followers' | 'Paid Followers'
-      ],
+      data: analytics[key as 'Page Views' | 'Organic Followers' | 'Paid Followers'],
       percentageChange: 5,
     }));
-  }
-
-  async postAnalytics(
-    integrationId: string,
-    accessToken: string,
-    postId: string,
-    date: number
-  ): Promise<AnalyticsData[]> {
-    const endDate = dayjs().unix() * 1000;
-    const startDate = dayjs().subtract(date, 'days').unix() * 1000;
-
-    // Fetch share statistics for the specific post
-    const shareStatsUrl = `https://api.linkedin.com/v2/organizationalEntityShareStatistics?q=organizationalEntity&organizationalEntity=${encodeURIComponent(
-      `urn:li:organization:${integrationId}`
-    )}&shares=List(${encodeURIComponent(postId)})&timeIntervals=(timeRange:(start:${startDate},end:${endDate}),timeGranularityType:DAY)`;
-
-    const { elements: shareElements }: { elements: PostShareStatElement[] } =
-      await (
-        await this.fetch(shareStatsUrl, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'LinkedIn-Version': '202601',
-            'X-Restli-Protocol-Version': '2.0.0',
-          },
-        })
-      ).json();
-
-    // Also fetch social actions (likes, comments, shares) for the specific post
-    let socialActions: SocialActionsResponse | null = null;
-    try {
-      const socialActionsUrl = `https://api.linkedin.com/v2/socialActions/${encodeURIComponent(
-        postId
-      )}`;
-      socialActions = await (
-        await this.fetch(socialActionsUrl, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'LinkedIn-Version': '202601',
-            'X-Restli-Protocol-Version': '2.0.0',
-          },
-        })
-      ).json();
-    } catch (e) {
-      // Social actions may not be available for all posts
-    }
-
-    // Process share statistics into time series data
-    const analytics = (shareElements || []).reduce(
-      (all, current) => {
-        if (typeof current?.totalShareStatistics !== 'undefined') {
-          const dateStr = dayjs(current.timeRange.start).format('YYYY-MM-DD');
-
-          all['Impressions'].push({
-            total: current.totalShareStatistics.impressionCount || 0,
-            date: dateStr,
-          });
-
-          all['Unique Impressions'].push({
-            total: current.totalShareStatistics.uniqueImpressionsCount || 0,
-            date: dateStr,
-          });
-
-          all['Clicks'].push({
-            total: current.totalShareStatistics.clickCount || 0,
-            date: dateStr,
-          });
-
-          all['Likes'].push({
-            total: current.totalShareStatistics.likeCount || 0,
-            date: dateStr,
-          });
-
-          all['Comments'].push({
-            total: current.totalShareStatistics.commentCount || 0,
-            date: dateStr,
-          });
-
-          all['Shares'].push({
-            total: current.totalShareStatistics.shareCount || 0,
-            date: dateStr,
-          });
-
-          all['Engagement'].push({
-            total: current.totalShareStatistics.engagement || 0,
-            date: dateStr,
-          });
-        }
-        return all;
-      },
-      {
-        Impressions: [] as { total: number; date: string }[],
-        'Unique Impressions': [] as { total: number; date: string }[],
-        Clicks: [] as { total: number; date: string }[],
-        Likes: [] as { total: number; date: string }[],
-        Comments: [] as { total: number; date: string }[],
-        Shares: [] as { total: number; date: string }[],
-        Engagement: [] as { total: number; date: string }[],
-      }
-    );
-
-    // If no time series data but we have social actions, create a single data point
-    if (
-      Object.values(analytics).every((arr) => arr.length === 0) &&
-      socialActions
-    ) {
-      const today = dayjs().format('YYYY-MM-DD');
-      analytics['Likes'].push({
-        total: socialActions.likesSummary?.totalLikes || 0,
-        date: today,
-      });
-      analytics['Comments'].push({
-        total: socialActions.commentsSummary?.totalFirstLevelComments || 0,
-        date: today,
-      });
-    }
-
-    // Filter out empty analytics
-    const result = Object.entries(analytics)
-      .filter(([_, data]) => data.length > 0)
-      .map(([label, data]) => ({
-        label,
-        data,
-        percentageChange: 0,
-      }));
-
-    return result as any;
   }
 
   @Plug({
@@ -548,14 +392,14 @@ export class LinkedinPageProvider
   })
   async autoRepostPost(
     integration: Integration,
-    id: string,
+    postId: string,
     fields: { likesAmount: string }
   ) {
     const {
       likesSummary: { totalLikes },
     } = await (
       await this.fetch(
-        `https://api.linkedin.com/v2/socialActions/${encodeURIComponent(id)}`,
+        `https://api.linkedin.com/v2/socialActions/${encodeURIComponent(postId)}`,
         {
           method: 'GET',
           headers: {
@@ -583,7 +427,7 @@ export class LinkedinPageProvider
           lifecycleState: 'PUBLISHED',
           isReshareDisabledByAuthor: false,
           reshareContext: {
-            parent: id,
+            parent: postId,
           },
         }),
         method: 'POST',
@@ -626,14 +470,14 @@ export class LinkedinPageProvider
   })
   async autoPlugPost(
     integration: Integration,
-    id: string,
+    postId: string,
     fields: { likesAmount: string; post: string }
   ) {
     const {
       likesSummary: { totalLikes },
     } = await (
       await this.fetch(
-        `https://api.linkedin.com/v2/socialActions/${encodeURIComponent(id)}`,
+        `https://api.linkedin.com/v2/socialActions/${encodeURIComponent(postId)}`,
         {
           method: 'GET',
           headers: {
@@ -646,12 +490,10 @@ export class LinkedinPageProvider
       )
     ).json();
 
-    if (totalLikes >= fields.likesAmount) {
+    if (totalLikes >= +fields.likesAmount) {
       await timer(2000);
       await this.fetch(
-        `https://api.linkedin.com/v2/socialActions/${decodeURIComponent(
-          id
-        )}/comments`,
+        `https://api.linkedin.com/v2/socialActions/${decodeURIComponent(postId)}/comments`,
         {
           method: 'POST',
           headers: {
@@ -660,7 +502,7 @@ export class LinkedinPageProvider
           },
           body: JSON.stringify({
             actor: `urn:li:organization:${integration.internalId}`,
-            object: id,
+            object: postId,
             message: {
               text: this.fixText(fields.post),
             },
@@ -708,103 +550,8 @@ export interface Clicks {
 }
 
 export interface Views {
-  mobileProductsPageViews: MobileProductsPageViews;
-  allDesktopPageViews: AllDesktopPageViews;
-  insightsPageViews: InsightsPageViews;
-  mobileAboutPageViews: MobileAboutPageViews;
-  allMobilePageViews: AllMobilePageViews;
-  productsPageViews: ProductsPageViews;
-  desktopProductsPageViews: DesktopProductsPageViews;
-  jobsPageViews: JobsPageViews;
-  peoplePageViews: PeoplePageViews;
-  overviewPageViews: OverviewPageViews;
-  mobileOverviewPageViews: MobileOverviewPageViews;
-  lifeAtPageViews: LifeAtPageViews;
-  desktopOverviewPageViews: DesktopOverviewPageViews;
-  mobileCareersPageViews: MobileCareersPageViews;
   allPageViews: AllPageViews;
-  careersPageViews: CareersPageViews;
-  mobileJobsPageViews: MobileJobsPageViews;
-  mobileLifeAtPageViews: MobileLifeAtPageViews;
-  desktopJobsPageViews: DesktopJobsPageViews;
-  desktopPeoplePageViews: DesktopPeoplePageViews;
-  aboutPageViews: AboutPageViews;
-  desktopAboutPageViews: DesktopAboutPageViews;
-  mobilePeoplePageViews: MobilePeoplePageViews;
-  desktopCareersPageViews: DesktopCareersPageViews;
-  desktopInsightsPageViews: DesktopInsightsPageViews;
-  desktopLifeAtPageViews: DesktopLifeAtPageViews;
-  mobileInsightsPageViews: MobileInsightsPageViews;
-}
-
-export interface MobileProductsPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface AllDesktopPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface InsightsPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface MobileAboutPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface AllMobilePageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface ProductsPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface DesktopProductsPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface JobsPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface PeoplePageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface OverviewPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface MobileOverviewPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface LifeAtPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface DesktopOverviewPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface MobileCareersPageViews {
-  pageViews: number;
-  uniquePageViews: number;
+  [key: string]: any;
 }
 
 export interface AllPageViews {
@@ -812,94 +559,7 @@ export interface AllPageViews {
   uniquePageViews: number;
 }
 
-export interface CareersPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface MobileJobsPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface MobileLifeAtPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface DesktopJobsPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface DesktopPeoplePageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface AboutPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface DesktopAboutPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface MobilePeoplePageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface DesktopCareersPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface DesktopInsightsPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface DesktopLifeAtPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
-export interface MobileInsightsPageViews {
-  pageViews: number;
-  uniquePageViews: number;
-}
-
 export interface TimeRange {
   start: number;
   end: number;
-}
-
-// Post analytics interfaces
-export interface PostShareStatElement {
-  organizationalEntity: string;
-  share: string;
-  totalShareStatistics: {
-    uniqueImpressionsCount: number;
-    shareCount: number;
-    engagement: number;
-    clickCount: number;
-    likeCount: number;
-    impressionCount: number;
-    commentCount: number;
-  };
-  timeRange: TimeRange;
-}
-
-export interface SocialActionsResponse {
-  likesSummary?: {
-    totalLikes: number;
-    likedByCurrentUser: boolean;
-  };
-  commentsSummary?: {
-    totalFirstLevelComments: number;
-    commentsState: string;
-  };
 }
